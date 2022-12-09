@@ -1,5 +1,5 @@
 from django.shortcuts import render , redirect
-from .models import Room , Topic , User
+from .models import Room , Topic , MEssage
 from .forms import RoomForm
 from django.db.models import Q
 from django.contrib.auth.model import authenticate, login, logout
@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.http import HttpResponse 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-
+from django.contrib.auth.models import User
 # Create your views here.
 
 
@@ -69,9 +69,10 @@ def registerPage(request):
     return render(request, 'base/login_register.html', {'form' : form})
 
 def home(request):
-    # ?q=python
+    # ?q=python 
     q = request.GET('q') if request.GET.get('q') != None else ''
-
+    # q = query result from HTTP GET Protocol
+ 
     # icontains?? 
     rooms = Room.objects.filter(
         Q(topic__name__icontains=q) |
@@ -79,12 +80,17 @@ def home(request):
         Q(description__icontains=q)
         )
     topics = Topic.objects.all()
-
     room_count = rooms.count()
+    room_messages = Message.objects.filter(
+        Q(room__topic__name__icontains=q)
+    )
+
+
     context = {
         'rooms' : rooms,
         'topics' : topics,
         'room_count' : room_count,
+        'room_messages' : room_messages,
 
     }
 
@@ -93,7 +99,46 @@ def home(request):
     
 def room(request, pk):
     room = Room.objects.get(id=pk)
-    return render(request, 'base/room.html', {'rooms' : room})
+    room_messages = room.message_set.all()
+    participants = room.participants.all()
+    # returns all related messages
+    # room.message_set.all()
+    # room has no attribute of message. so we need to use
+    # room.message_set.all() to find it all!
+
+    if request.method == "POST":
+        message = Message.objects.create(
+            user = request.user,
+            room = room, # above there
+            body =request.POST.get('body'),
+        )
+        room.participants.add(request.user)
+        return redirect('room', pk=room.id)
+
+    context = {
+        'room' : room,
+        'room_messages' : room_messages,
+        'participants' : participants,
+    }
+    
+    return render(request, 'base/room.html', context )
+
+def userProfile(request , pk):
+    user = User.object.get(id=pk)
+    rooms = user.room_set.all() # all rooms that current user is in...
+    room_messages = user.message_set.all() # All messages this user has
+    topics = topic.objects.all()
+    
+    context = {
+        'user' : user,
+        'rooms' : rooms,
+        'room_messages' : room_messages,
+        'topics' : topics,
+
+    }
+    return render(request, 'base/profile.html', context)
+
+
 
 @login_required(login_url='login')
 def createRoom(requeset):
@@ -127,9 +172,9 @@ def updateRoom(request,pk): # primary key
     
     return render(request, 'base/room_form.html', context)    
 
+@login_required(login_url = 'login')
 def deleteRoom(request,pk):
     room = Room.objects.get(id=pk)
-
 
     if request.user != room.host:
         return HttpResponse("U R NOT ALLOWED HERE") 
@@ -139,3 +184,17 @@ def deleteRoom(request,pk):
         return redirect('home')
 
     return render(request, 'base/delete.html', {'obj' : room})
+
+
+@login_required(login_url = 'login')
+def deleteMessage(request,pk):
+    message = Message.objects.get(id=pk)
+
+    if request.user != message.user:
+        return HttpResponse("U R NOT ALLOWED HERE") 
+    
+    if request.method == "POST":
+        message.delete() # simply remove it
+        return redirect('home')
+
+    return render(request, 'base/delete.html', {'obj' : message})

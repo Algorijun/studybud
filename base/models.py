@@ -17,7 +17,7 @@ class Room(models.Model): # inherit from django
     topic = models.ForeignKey(Topic, on_delete=models.SET_NULL, null=True)
     name = models.charField(max_length=200)
     description = models.TextField(null=True , blank=True) # When form submit happens, It can be blank
-    # participants = 
+    participants = models.ManyToManyField(User, related_name='participants', blank=True)
     updated = models.DateTimeField(auto_now = True)
     created = models.DateTimeField(auto_now_add = True) # 
     # Diff between auto_now and auto_now_add
@@ -40,6 +40,11 @@ class Message(models.Model):
     updated = models.DateTimeField(auto_now = True)
     created = models.DateTimeField(auto_now_add = True) # 
 
+    class Meta:
+        ordering = ['-updated', '-created']
+        
     def __str__(self):
         return self.body[0:50] 
+    
+    
 
