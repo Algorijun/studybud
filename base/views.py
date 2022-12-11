@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User UserForm
 # Create your views here.
 
 
@@ -21,13 +21,15 @@ from django.contrib.auth.models import User
 
 def loginPage(request):
     page = 'login'
-
     if request.user.is_authenticated:
+        # Once u are logged in.. U don't have to go to login page
         return redirect('home')
 
     if request.method == "POST":
         username = request.POST.get('username').lower()
+    #   username = request.POST.['username'].lower() Official doc
         password = request.POST.get('password')
+    #.  password = request.POST.['password'] # official doc
 
         try:
             user = User.objects.get(username=username)
@@ -35,10 +37,13 @@ def loginPage(request):
             messages.error(request, "hmmm User does not exist")
 
         user = authenticate(request, username=username, password=password)
+        # above code is same with official doc... 
+        # using Django auth !!! 
+
         if user is not None:
-            login(request, user)
-            return redirect('home')
-        else:
+            login(request, user) # user is okay then login
+            return redirect('home') # and then go to the main page
+        else: # Something went wrong!!
             messages.error(request, 'Username Or Password does not exist')
     context = {
         'page': page
@@ -48,7 +53,7 @@ def loginPage(request):
 
 
 def logoutUser(request):
-    logout(request)
+    logout(request) # really simple logout !
     return redirect('home')
 
 
@@ -103,7 +108,7 @@ def home(request):
 def room(request, pk):
     room = Room.objects.get(id=pk)
     room_messages = room.message_set.all()
-    participants = room.participants.all()
+    participants = room.participants.all() # All the participants in that room
     # returns all related messages
     # room.message_set.all()
     # room has no attribute of message. so we need to use
@@ -146,14 +151,29 @@ def userProfile(request, pk):
 @login_required(login_url='login')
 def createRoom(request):
     form = RoomForm()
+    topics = Topics.objects.all()
     if request.method == "POST":
         # print(request.POST)
+        topic_name = request.POST.get('topic')
+        topic, create = Topic.objects.get_or_create(name=topic_name)
         form = RoomForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect('home')  # we have namespace so just say it's home
+        Room.obejcts.create(
+            host = request.user,
+            topic = topic,
+            name = request.POST.get('name'),
+            description = request.POST.get('description')
+        )
+        # if form.is_valid():
+        #     room = form.save(commit=False)
+        #     room.host = request.user # Remember we fixed the forms.py?
+        #     room.save() # host is autimatically be the host
+        return redirect('home')  # we have namespace so just say it's home
 
-    context = {'form': form}
+    context = {
+        'form': form,
+        'topics' : topics,
+
+    }
     return render(request, 'base/room_form.html', context)
 
 
@@ -161,17 +181,26 @@ def createRoom(request):
 def updateRoom(request, pk):  # primary key
     room = Room.objects.get(id=pk)
     form = RoomForm(instance=room)
-
+    topics = Topic.objects.all()
     if request.user != room.host:
         return HttpResponse("U R NOT ALLOWED HERE")
 
     if request.method == "POST":
-        form = RoomForm(request.POST, instance=room)
-        if form.is_valid():
-            form.save()
-            return redirect('home')
+        topic_name = request.POST.get('topic')
+        topic, create = Topic.objects.get_or_create(name=topic_name)
+        room.name = request.POST.get('name')
+        room.topic = topic
+        room.name = request.POST.get('description')
+        # form = RoomForm(request.POST, instance=room)
+        # if form.is_valid():
+        #     form.save()
+        return redirect('home')
 
-    context = {'form': form}
+    context = {
+        'form': form,
+        'topics' : topics,
+
+        }
 
     return render(request, 'base/room_form.html', context)
 
@@ -202,3 +231,22 @@ def deleteMessage(request, pk):
         return redirect('home')
 
     return render(request, 'base/delete.html', {'obj': message})
+
+
+
+@login_required(login_url='login')
+def updateUser(request):
+    user = reuqest.user
+    form = UserForm(instance = user)
+
+    if request.method == "POST":
+        form = UserForm(request.POST, instance = user)
+        if form.is_valid():
+            form.save()
+            return redirect('user-profile', pk=user.id)
+
+    context = {
+        'form' : form
+    }
+
+    return render(request, 'base/update-user.html', context)
